@@ -4,8 +4,10 @@ pragma solidity ^0.8.20;
 import {Test, console} from "forge-std/Test.sol";
 import {MerkleAirdrop} from "../src/MerkleAirdrop.sol";
 import {BagelToken} from "../src/BagelToken.sol";
+import {ZkSyncChainChecker} from "lib/foundry-devops/src/ZkSyncChainChecker.sol";
+import {DeployMerkleAirdrop} from "../script/DeployMerkleAirdrop.s.sol";
 
-contract MerkleAirdropTest is Test {
+contract MerkleAirdropTest is ZkSyncChainChecker, Test {
     MerkleAirdrop public merkleAirdrop;
     BagelToken public bagelToken;
 
@@ -20,17 +22,24 @@ contract MerkleAirdropTest is Test {
     uint256 userPrivKey;
 
     function setUp() public {
-        bagelToken = new BagelToken();
-        merkleAirdrop = new MerkleAirdrop(ROOT, bagelToken);
-        bagelToken.mint(bagelToken.owner(), AMOUNT_TO_SEND);
-        bagelToken.transfer(address(merkleAirdrop), AMOUNT_TO_SEND);
+        if (!isZkSyncChain()) {
+            DeployMerkleAirdrop deployer = new DeployMerkleAirdrop();
+            (merkleAirdrop, bagelToken) = deployer.deployMerkleAirdrop();
+        } else {
+            bagelToken = new BagelToken();
+            merkleAirdrop = new MerkleAirdrop(ROOT, bagelToken);
+            bagelToken.mint(bagelToken.owner(), AMOUNT_TO_SEND);
+            bagelToken.transfer(address(merkleAirdrop), AMOUNT_TO_SEND);
+        }
+
         (user, userPrivKey) = makeAddrAndKey("user");
     }
 
-    function testUserCanCliam() public {
+    function testUserCanClaim() public {
         uint256 startingBalance = bagelToken.balanceOf(user);
 
         vm.prank(user);
+        console.log("starting", startingBalance);
         merkleAirdrop.claim(user, AMOUNT_TO_CLAIM, PROOF);
 
         uint256 endingBalance = bagelToken.balanceOf(user);
